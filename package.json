@@ -1,0 +1,22 @@
+{
+  "name": "pingdiff",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sblaurock/pingdiff.git"
+  },
+  "author": "sblaurock",
+  "bugs": {
+    "url": "https://github.com/sblaurock/pingdiff/issues"
+  },
+  "homepage": "https://github.com/sblaurock/pingdiff#readme",
+  "dependencies": {
+    "jsdom": "^8.1.0",
+    "restler": "^3.4.0"
+  }
+}
