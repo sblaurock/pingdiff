@@ -2,6 +2,7 @@ const jsdom = require('jsdom');
 const argv = require('yargs').argv;
 const fs = require('fs');
 const _ = require('lodash');
+const logger = require("./utils/logger");
 
 const { endpoints, interval } = argv;
 const options = {
