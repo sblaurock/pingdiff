@@ -5,19 +5,19 @@ Detect differences across a supplied list of websites.
     npm install
 
 ### Usage
-    node index.js --interval="60" --endpoints="/path/to/endpoints" --ifttt="/path/to/ifttt.json"
+    node index.js --interval=60 --endpoints="/path/to/endpoints" --ifttt="/path/to/ifttt.json"
 
 ### Flags
-| Flag | Required | Description |
-| --- | --- | --- |
-| interval | ✓ | Interval (in seconds) of how often to ping endpoints. |
-| endpoints | ✓ | Path to line separated list of URL endpoints to ping. |
-| ifttt | ✗ | Path to IFTTT JSON configuration _(see below)_. |
+| Flag | Required | Type | Description |
+| --- | --- | --- | --- |
+| interval | ✓ | Integer | Interval (in seconds) of how often to ping endpoints. |
+| endpoints | ✓ | String | Path to line separated list of URL endpoints to ping. |
+| ifttt | ✗ | String | Path to IFTTT JSON configuration _(see below)_. |
 
 ### IFTTT Parameters
-| Flag | Required | Description |
-| --- | --- | --- |
-| key | ✓ | Maker channel secret key. |
-| eventName | ✓ | Maker event name. |
-| bodyKey | ✓ | Form data JSON body key _(value1, value2, value3)_. |
-| timeout | ✗ | Minimum amount of time to wait (in seconds) between posted events. |
+| Flag | Required | Type | Description |
+| --- | --- | --- | --- |
+| key | ✓ | String | Maker channel secret key. |
+| eventName | ✓ | String | Maker event name. |
+| bodyKey | ✓ | String | Form data JSON body key _(value1, value2, value3)_. |
+| timeout | ✗ | Integer | Minimum amount of time to wait (in seconds) between posted events. |

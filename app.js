@@ -10,8 +10,9 @@ let IFTTTParams = {};
 let IFTTTTimers = {};
 const { endpoints, interval, ifttt } = argv;
 const options = {
-  selector: 'body',
-  jQuerySrc: 'http://code.jquery.com/jquery.js'
+  selector: 'body :not(script)',
+  jQuerySrc: 'http://code.jquery.com/jquery.js',
+  defaultTimeout: 10
 };
 
 // Ensure we have required arguments
@@ -33,9 +34,9 @@ if(ifttt) {
     process.exit(5);
   }
 
-  const { key, eventName, bodyKey, timeout } = IFTTTParams = jsonfile.readFileSync(ifttt);
+  const { key, eventName, bodyKey } = IFTTTParams = jsonfile.readFileSync(ifttt);
 
-  if(!key || !eventName || !bodyKey) {
+  if(!key || !eventName || !bodyKey || !_.isString(key) || !_.isString(eventName) || !_.isString(bodyKey)) {
     console.error('--ifttt file is missing required data');
     process.exit(6);
   }
@@ -76,7 +77,7 @@ const makeRequests = (urls, callback) => {
 // Send event to IFTTT
 const postIFTTT = (data) => {
   const now = Math.round(new Date().getTime() / 1000);
-  const timeout = IFTTTParams.timeout || 10;
+  const timeout = (_.isInteger(IFTTTParams.timeout) ? IFTTTParams.timeout : options.defaultTimeout);
 
   // Ensure enough time has passed since last time an event was dispatched
   if(!IFTTTTimers[data] || now - IFTTTTimers[data] > timeout) {
@@ -85,8 +86,16 @@ const postIFTTT = (data) => {
     postData[IFTTTParams.bodyKey] = data;
     IFTTTTimers[data] = now;
 
-    request.post(`https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`).form(postData);
-    console.log('- IFTTT event dispatched');
+    request.post({
+      url: `https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`,
+      form: postData
+    }, (err, response) => {
+      if(err) {
+        console.log('- IFTTT event dispatch failed');
+      } else {
+        console.log('- IFTTT event dispatched');
+      }
+    });
   } else {
     console.log('- IFTTT event ignored due to timeout');
   }
