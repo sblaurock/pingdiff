@@ -2,9 +2,12 @@ const jsdom = require('jsdom');
 const argv = require('yargs').argv;
 const fs = require('fs');
 const _ = require('lodash');
+const request = require('request');
+const jsonfile = require('jsonfile');
 const logger = require("./utils/logger");
 
-const { endpoints, interval } = argv;
+let IFTTTParams = {};
+const { endpoints, interval, ifttt } = argv;
 const options = {
   selector: 'body',
   jQuerySrc: 'http://code.jquery.com/jquery.js'
@@ -20,6 +23,21 @@ if(!_.isString(endpoints) || !_.isInteger(interval) || interval === 0) {
 if(!fs.statSync(endpoints).isFile()) {
   console.error('--endpoints should refer to a file (list of endpoints)');
   process.exit(2);
+}
+
+// Ensure IFTTT configuration is valid
+if(ifttt) {
+  if(!fs.statSync(ifttt).isFile()) {
+    console.error('--ifttt should refer to a JSON file configuration');
+    process.exit(5);
+  }
+
+  const { key, eventName, bodyKey } = IFTTTParams = jsonfile.readFileSync(ifttt);
+
+  if(!key || !eventName || !bodyKey) {
+    console.error('--ifttt file is missing required data');
+    process.exit(6);
+  }
 }
 
 // Make requests to endpoints
@@ -54,6 +72,16 @@ const makeRequests = (urls, callback) => {
   });
 };
 
+// Send event to IFTTT
+const postIFTTT = (data) => {
+  let postData = {};
+
+  postData[IFTTTParams.bodyKey] = data;
+
+  request.post(`https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`).form(postData);
+  console.log('- IFTTT event dispatched');
+};
+
 // Read endpoints file and create list of endpoints
 fs.readFile(endpoints, 'utf-8', (err, data) => {
   if(err) {
@@ -82,7 +110,15 @@ fs.readFile(endpoints, 'utf-8', (err, data) => {
 
         if(differences.length) {
           differences.forEach((difference) => {
-            console.log(`Difference identified within ${_.invert(responses)[difference]}`);
+            const endpoint = _.invert(responses)[difference];
+
+            cache[endpoint] = difference;
+
+            console.log(`Difference identified within ${endpoint}`);
+
+            if(ifttt) {
+              postIFTTT(endpoint);
+            }
           });
         } else {
           console.log(`No differences identified for ${_.keys(responses).length} responses`)
