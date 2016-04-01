@@ -1,63 +1,63 @@
-const jsdom = require('jsdom');
-const argv = require('yargs').argv;
-const fs = require('fs');
-const _ = require('lodash');
-const request = require('request');
-const jsonfile = require('jsonfile');
-const logger = require("./utils/logger");
+import jsdom from 'jsdom';
+import { argv } from 'yargs';
+import fs from 'fs';
+import _ from 'lodash';
+import request from 'request';
+import jsonfile from 'jsonfile';
+import logger from './utils/logger';
 
 let IFTTTParams = {};
-let IFTTTTimers = {};
+const IFTTTTimers = {};
 const { endpoints, interval, ifttt } = argv;
 const options = {
   selector: 'body :not(script)',
   jQuerySrc: 'http://code.jquery.com/jquery.js',
-  defaultTimeout: 10
+  defaultTimeout: 10,
 };
 
 // Ensure we have required arguments
-if(!_.isString(endpoints) || !_.isInteger(interval) || interval === 0) {
-  console.error('--endpoints and --interval are required');
+if (!_.isString(endpoints) || !_.isInteger(interval) || interval === 0) {
+  logger('--endpoints and --interval are required');
   process.exit(1);
 }
 
 // Ensure list of endpoints is a file
-if(!fs.statSync(endpoints).isFile()) {
-  console.error('--endpoints should refer to a file (list of endpoints)');
+if (!fs.statSync(endpoints).isFile()) {
+  logger('--endpoints should refer to a file (list of endpoints)');
   process.exit(2);
 }
 
 // Ensure IFTTT configuration is valid
-if(ifttt) {
-  if(!fs.statSync(ifttt).isFile()) {
-    console.error('--ifttt should refer to a JSON file configuration');
+if (ifttt) {
+  if (!fs.statSync(ifttt).isFile()) {
+    logger('--ifttt should refer to a JSON file configuration');
     process.exit(5);
   }
 
   const { key, eventName, bodyKey } = IFTTTParams = jsonfile.readFileSync(ifttt);
 
-  if(!key || !eventName || !bodyKey || !_.isString(key) || !_.isString(eventName) || !_.isString(bodyKey)) {
-    console.error('--ifttt file is missing required data');
+  if (!key || !eventName || !bodyKey || !_.isString(key) || !_.isString(eventName) || !_.isString(bodyKey)) { // eslint-disable-line max-len
+    logger('--ifttt file is missing required data');
     process.exit(6);
   }
 }
 
 // Make requests to endpoints
 const makeRequests = (urls, callback) => {
-  let responses = {};
+  const responses = {};
   let complete = 0;
 
   urls.forEach((url) => {
     jsdom.env({
-      url: url,
+      url,
       scripts: [options.jQuerySrc],
       done: (err, window) => {
-        if(!window || !window.$ || err) {
-          console.error(`Resource data located at ${url} failed to load`);
+        if (!window || !window.$ || err) {
+          logger(`Resource data located at ${url} failed to load`);
         } else {
           const $ = window.$;
 
-          $(options.selector).each(function() {
+          $(options.selector).each(() => {
             const responseText = $(this).text().replace(/\W+/g, '');
 
             responses[url] = responseText;
@@ -66,10 +66,10 @@ const makeRequests = (urls, callback) => {
 
         complete++;
 
-        if(complete === urls.length) {
+        if (complete === urls.length) {
           callback(responses);
         }
-      }
+      },
     });
   });
 };
@@ -80,40 +80,38 @@ const postIFTTT = (data) => {
   const timeout = (_.isInteger(IFTTTParams.timeout) ? IFTTTParams.timeout : options.defaultTimeout);
 
   // Ensure enough time has passed since last time an event was dispatched
-  if(!IFTTTTimers[data] || now - IFTTTTimers[data] > timeout) {
-    let postData = {};
+  if (!IFTTTTimers[data] || now - IFTTTTimers[data] > timeout) {
+    const postData = {};
 
     postData[IFTTTParams.bodyKey] = data;
     IFTTTTimers[data] = now;
 
     request.post({
       url: `https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`,
-      form: postData
+      form: postData,
     }, (err, response) => {
-      if(err) {
-        console.log('- IFTTT event dispatch failed');
+      if (err) {
+        logger('- IFTTT event dispatch failed');
       } else {
-        console.log('- IFTTT event dispatched');
+        logger('- IFTTT event dispatched', response);
       }
     });
   } else {
-    console.log('- IFTTT event ignored due to timeout');
+    logger('- IFTTT event ignored due to timeout');
   }
 };
 
 // Read endpoints file and create list of endpoints
 fs.readFile(endpoints, 'utf-8', (err, data) => {
-  if(err) {
-    console.error('--endpoints file could not be read');
+  if (err) {
+    logger('--endpoints file could not be read');
     process.exit(3);
   }
 
-  const endpointsList = _.remove(data.split('\n'), (item) => {
-    return _.isString(item) && !_.isEmpty(item);
-  });
+  const endpointsList = _.remove(data.split('\n'), (item) => _.isString(item) && !_.isEmpty(item));
 
-  if(!endpointsList.length) {
-    console.error('--endpoints file does not contain any endpoints');
+  if (!endpointsList.length) {
+    logger('--endpoints file does not contain any endpoints');
     process.exit(4);
   }
 
@@ -121,26 +119,26 @@ fs.readFile(endpoints, 'utf-8', (err, data) => {
   makeRequests(endpointsList, (responses) => {
     const cache = responses;
 
-    console.log(`${_.keys(responses).length} of ${endpointsList.length} responses cached`);
+    logger(`${_.keys(responses).length} of ${endpointsList.length} responses cached`);
 
     setInterval(() => {
-      makeRequests(endpointsList, (responses) => {
-        const differences = _.difference(_.values(responses), _.values(cache));
+      makeRequests(endpointsList, (requestResponses) => {
+        const differences = _.difference(_.values(requestResponses), _.values(cache));
 
-        if(differences.length) {
+        if (differences.length) {
           differences.forEach((difference) => {
-            const endpoint = _.invert(responses)[difference];
+            const endpoint = _.invert(requestResponses)[difference];
 
             cache[endpoint] = difference;
 
-            console.log(`Difference identified within ${endpoint}`);
+            logger(`Difference identified within ${endpoint}`);
 
-            if(ifttt) {
+            if (ifttt) {
               postIFTTT(endpoint);
             }
           });
         } else {
-          console.log(`No differences identified for ${_.keys(responses).length} responses`)
+          logger(`No differences identified for ${_.keys(requestResponses).length} responses`);
         }
       });
     }, interval * 1000);
