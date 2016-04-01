@@ -7,6 +7,7 @@ const jsonfile = require('jsonfile');
 const logger = require("./utils/logger");
 
 let IFTTTParams = {};
+let IFTTTTimers = {};
 const { endpoints, interval, ifttt } = argv;
 const options = {
   selector: 'body',
@@ -32,7 +33,7 @@ if(ifttt) {
     process.exit(5);
   }
 
-  const { key, eventName, bodyKey } = IFTTTParams = jsonfile.readFileSync(ifttt);
+  const { key, eventName, bodyKey, timeout } = IFTTTParams = jsonfile.readFileSync(ifttt);
 
   if(!key || !eventName || !bodyKey) {
     console.error('--ifttt file is missing required data');
@@ -74,12 +75,21 @@ const makeRequests = (urls, callback) => {
 
 // Send event to IFTTT
 const postIFTTT = (data) => {
-  let postData = {};
+  const now = Math.round(new Date().getTime() / 1000);
+  const timeout = IFTTTParams.timeout || 10;
 
-  postData[IFTTTParams.bodyKey] = data;
+  // Ensure enough time has passed since last time an event was dispatched
+  if(!IFTTTTimers[data] || now - IFTTTTimers[data] > timeout) {
+    let postData = {};
 
-  request.post(`https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`).form(postData);
-  console.log('- IFTTT event dispatched');
+    postData[IFTTTParams.bodyKey] = data;
+    IFTTTTimers[data] = now;
+
+    request.post(`https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`).form(postData);
+    console.log('- IFTTT event dispatched');
+  } else {
+    console.log('- IFTTT event ignored due to timeout');
+  }
 };
 
 // Read endpoints file and create list of endpoints

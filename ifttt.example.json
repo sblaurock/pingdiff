@@ -1,5 +1,6 @@
 {
   "key": "key",
   "eventName": "pingdiff",
-  "bodyKey": "value1"
+  "bodyKey": "value1",
+  "timeout": 60
 }
