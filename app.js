@@ -100,7 +100,8 @@ const makeRequests = (urls) => {
         });
       }
     },
-  })).then(() => Promise.resolve(responses));
+  })).then(() => Promise.resolve(responses))
+  .catch((err) => logger.err('There was a problem making requests', err));
 };
 
 // Send event to IFTTT
