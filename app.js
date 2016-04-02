@@ -1,6 +1,6 @@
 import jsdom from 'jsdom';
-const argv = require('yargs').argv;
-import { keys, invert, difference, values } from 'lodash';
+import { argv } from 'yargs';
+import _ from 'lodash';
 import logger from './utils/logger';
 import Promise from 'bluebird';
 
@@ -28,13 +28,19 @@ import { post as _post } from 'request';
 const post = Promise.promisify(_post);
 
 // Ensure we have valid interval arg
-if (!interval || !parseInt(interval, 10) > 0) {
+if (!_.isInteger(interval) || interval < 0) {
   logger.error('--interval is required');
   process.exit(1);
 }
 
 // Ensure endpoints list is a file
 stat(endpointsPath)
+.then((endpointsFile) => {
+  if (!endpointsFile.isFile()) {
+    logger.error('--endpoints must be a file');
+    process.exit(1);
+  }
+})
 .catch((err) => {
   logger.error('--endpoints must be a valid file and is required', err);
   process.exit(1);
@@ -62,9 +68,9 @@ readFile(iftttPath)
   .then((params) => {
     // Validate IFTTT Parameters
     if (
-      typeof params.key !== 'string' ||
-      typeof params.eventName !== 'string' ||
-      typeof params.bodyKey !== 'string'
+      !_.isString(params.key) ||
+      !_.isString(params.eventName) ||
+      !_.isString(params.bodyKey)
     ) {
       logger.error('--ifttt file is missing required data');
       process.exit(6);
@@ -102,7 +108,7 @@ const makeRequests = (urls) => {
 // Send event to IFTTT
 const postIFTTT = (data) => {
   const now = Math.round(new Date().getTime() / 1000);
-  const timeout = (IFTTTParams.optionalTimeout && typeof IFTTTParams.optionalTimeout === 'number') ?
+  const timeout = (IFTTTParams.optionalTimeout && _.isInteger(IFTTTParams.optionalTimeout)) ?
     IFTTTParams.optionalTimeout :
     options.defaultTimeout;
 
@@ -125,21 +131,21 @@ const postIFTTT = (data) => {
 // Cache passed responses and then setup diffing intervals
 const diffCacheInterval = (responses) => {
   const cache = responses;
-  logger.info(`${keys(responses).length} of ${endpoints.length} responses cached.`);
+  logger.info(`${_.keys(responses).length} of ${endpoints.length} responses cached.`);
 
   const poll = () => makeRequests(endpoints).then((pollResponses) => {
-    const diff = difference(values(pollResponses), values(cache));
+    const diff = _.difference(_.values(pollResponses), _.values(cache));
 
     if (diff.length) {
       diff.forEach((change) => {
-        const endpoint = invert(pollResponses)[change];
+        const endpoint = _.invert(pollResponses)[change];
         cache[endpoint] = change;
         logger.info(`Difference identified within ${endpoint}`);
 
         postIFTTT(endpoint);
       });
     } else {
-      logger.info(`No differences identified for ${keys(pollResponses).length} responses`);
+      logger.info(`No differences identified for ${_.keys(pollResponses).length} responses`);
     }
   });
 
