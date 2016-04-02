@@ -100,9 +100,7 @@ const makeRequests = (urls) => {
         });
       }
     },
-  }));
-
-  return Promise.resolve(responses);
+  })).then(() => Promise.resolve(responses));
 };
 
 // Send event to IFTTT
