@@ -1,8 +1,8 @@
 {
   "name": "pingdiff",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "description": "Detect changes across a supplied list of websites",
+  "main": "index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sblaurock/pingdiff.git"
@@ -10,6 +10,9 @@
   "author": "sblaurock",
   "bugs": {
     "url": "https://github.com/sblaurock/pingdiff/issues"
+  },
+  "scripts": {
+    "lint": "eslint app.js"
   },
   "homepage": "https://github.com/sblaurock/pingdiff#readme",
   "dependencies": {
@@ -22,5 +25,9 @@
     "request": "^2.69.0",
     "winston": "^2.2.0",
     "yargs": "^4.3.2"
+  },
+  "devDependencies": {
+    "eslint": "^2.6.0",
+    "eslint-config-airbnb": "^6.2.0"
   }
 }

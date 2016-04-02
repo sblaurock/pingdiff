@@ -15,8 +15,4 @@ let logger = new winston.Logger({
   exitOnError: false
 });
 
-// Use logger in favor of native
-console.log = logger.info;
-console.error = logger.error;
-
 module.exports = logger;

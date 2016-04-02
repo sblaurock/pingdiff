@@ -1,5 +1,5 @@
 # pingdiff
-Detect differences across a supplied list of websites.
+Detect changes across a supplied list of websites.
 
 ### Setup
     npm install
