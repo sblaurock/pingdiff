@@ -1,146 +1,153 @@
 import jsdom from 'jsdom';
-import { argv } from 'yargs';
-import fs from 'fs';
-import _ from 'lodash';
-import request from 'request';
-import jsonfile from 'jsonfile';
+const argv = require('yargs').argv;
+import { keys, invert, difference, values } from 'lodash';
 import logger from './utils/logger';
+import Promise from 'bluebird';
 
-let IFTTTParams = {};
 const IFTTTTimers = {};
-const { endpoints, interval, ifttt } = argv;
+const IFTTTParams = {};
+const endpointsPath = argv.endpoints;
+const interval = argv.interval;
+const iftttPath = argv.ifttt;
 const options = {
   selector: 'body :not(script)',
   jQuerySrc: 'http://code.jquery.com/jquery.js',
   defaultTimeout: 10,
 };
 
-// Ensure we have required arguments
-if (!_.isString(endpoints) || !_.isInteger(interval) || interval === 0) {
-  logger('--endpoints and --interval are required');
+// Promisify imports
+import {
+  stat as _stat,
+  readFile as _readFile,
+} from 'fs';
+const stat = Promise.promisify(_stat);
+const readFile = Promise.promisify(_readFile);
+
+import { post as _post } from 'request';
+const post = Promise.promisify(_post);
+
+// Ensure we have valid interval arg
+if (!interval || !parseInt(interval, 10) > 0) {
+  logger.error('--interval is required');
   process.exit(1);
 }
 
-// Ensure list of endpoints is a file
-if (!fs.statSync(endpoints).isFile()) {
-  logger('--endpoints should refer to a file (list of endpoints)');
-  process.exit(2);
-}
+// Ensure endpoints list is a file
+stat(endpointsPath)
+.catch((err) => {
+  logger.error('--endpoints must be a valid file and is required', err);
+  process.exit(1);
+});
 
-// Ensure IFTTT configuration is valid
-if (ifttt) {
-  if (!fs.statSync(ifttt).isFile()) {
-    logger('--ifttt should refer to a JSON file configuration');
-    process.exit(5);
+// Read endpoints file and create list of endpoints
+const endpoints = readFile(endpointsPath, 'utf-8')
+.then((endpointsList) => {
+  if (!endpointsList.length) {
+    logger.error('--endpoints file does not contain any endpoints');
+    process.exit(4);
   }
 
-  const { key, eventName, bodyKey } = IFTTTParams = jsonfile.readFileSync(ifttt);
+  return endpointsList.split('\n').filter((endpoint) => endpoint && typeof endpoint === 'string');
+})
+.catch((err) => {
+  logger.error('--endpoints file could not be read', err);
+  process.exit(3);
+});
 
-  if (!key || !eventName || !bodyKey || !_.isString(key) || !_.isString(eventName) || !_.isString(bodyKey)) { // eslint-disable-line max-len
-    logger('--ifttt file is missing required data');
-    process.exit(6);
-  }
-}
+// Create IFTTT Parameters
+readFile(iftttPath)
+  .then((file) => JSON.parse(file))
+  .then((params) => {
+    // Validate IFTTT Parameters
+    if (
+      typeof params.key !== 'string' ||
+      typeof params.eventName !== 'string' ||
+      typeof params.bodyKey !== 'string'
+    ) {
+      logger.error('--ifttt file is missing required data');
+      process.exit(6);
+    } else {
+      IFTTTParams.key = params.key;
+      IFTTTParams.eventName = params.eventName;
+      IFTTTParams.bodyKey = params.bodyKey;
+      IFTTTParams.optionalTimeout = params.timeout;
+    }
+  })
+  .catch((err) => logger.error('--ifttt should refer to a JSON file configuration', err));
 
 // Make requests to endpoints
-const makeRequests = (urls, callback) => {
+const makeRequests = (urls) => {
   const responses = {};
-  let complete = 0;
 
-  urls.forEach((url) => {
-    jsdom.env({
-      url,
-      scripts: [options.jQuerySrc],
-      done: (err, window) => {
-        if (!window || !window.$ || err) {
-          logger(`Resource data located at ${url} failed to load`);
-        } else {
-          const $ = window.$;
+  Promise.map(urls, (url) => jsdom.env({
+    url,
+    scripts: [options.jQuerySrc],
+    done: (err, window) => {
+      if (!window || !window.$ || err) {
+        logger.error(`Resource data located at ${url} failed to load`);
+      } else {
+        const $ = window.$;
+        $(options.selector).each(() => {
+          responses[url] = $(this).text().replace(/\W+/g, '');
+        });
+      }
+    },
+  }));
 
-          $(options.selector).each(() => {
-            const responseText = $(this).text().replace(/\W+/g, '');
-
-            responses[url] = responseText;
-          });
-        }
-
-        complete++;
-
-        if (complete === urls.length) {
-          callback(responses);
-        }
-      },
-    });
-  });
+  return Promise.resolve(responses);
 };
 
 // Send event to IFTTT
 const postIFTTT = (data) => {
   const now = Math.round(new Date().getTime() / 1000);
-  const timeout = (_.isInteger(IFTTTParams.timeout) ? IFTTTParams.timeout : options.defaultTimeout);
+  const timeout = (IFTTTParams.optionalTimeout && typeof IFTTTParams.optionalTimeout === 'number') ?
+    IFTTTParams.optionalTimeout :
+    options.defaultTimeout;
 
   // Ensure enough time has passed since last time an event was dispatched
   if (!IFTTTTimers[data] || now - IFTTTTimers[data] > timeout) {
-    const postData = {};
-
-    postData[IFTTTParams.bodyKey] = data;
     IFTTTTimers[data] = now;
-
-    request.post({
+    const request = {
       url: `https://maker.ifttt.com/trigger/${IFTTTParams.eventName}/with/key/${IFTTTParams.key}`,
-      form: postData,
-    }, (err, response) => {
-      if (err) {
-        logger('- IFTTT event dispatch failed');
-      } else {
-        logger('- IFTTT event dispatched', response);
-      }
-    });
+      form: { bodyKey: data },
+    };
+
+    post(request)
+    .then((response) => logger.info('- IFTTT event dispatched', response))
+    .catch((err) => logger.error('- IFTT event dispatch failed', err));
   } else {
-    logger('- IFTTT event ignored due to timeout');
+    logger.info('- IFTTT event ignored due to timeout');
   }
 };
 
-// Read endpoints file and create list of endpoints
-fs.readFile(endpoints, 'utf-8', (err, data) => {
-  if (err) {
-    logger('--endpoints file could not be read');
-    process.exit(3);
-  }
+// Cache passed responses and then setup diffing intervals
+const diffCacheInterval = (responses) => {
+  const cache = responses;
+  logger.info(`${keys(responses).length} of ${endpoints.length} responses cached.`);
 
-  const endpointsList = _.remove(data.split('\n'), (item) => _.isString(item) && !_.isEmpty(item));
+  const poll = () => makeRequests(endpoints).then((pollResponses) => {
+    const diff = difference(values(pollResponses), values(cache));
 
-  if (!endpointsList.length) {
-    logger('--endpoints file does not contain any endpoints');
-    process.exit(4);
-  }
+    if (diff.length) {
+      diff.forEach((change) => {
+        const endpoint = invert(pollResponses)[change];
+        cache[endpoint] = change;
+        logger.info(`Difference identified within ${endpoint}`);
 
-  // Cache initial endpoint responses
-  makeRequests(endpointsList, (responses) => {
-    const cache = responses;
-
-    logger(`${_.keys(responses).length} of ${endpointsList.length} responses cached`);
-
-    setInterval(() => {
-      makeRequests(endpointsList, (requestResponses) => {
-        const differences = _.difference(_.values(requestResponses), _.values(cache));
-
-        if (differences.length) {
-          differences.forEach((difference) => {
-            const endpoint = _.invert(requestResponses)[difference];
-
-            cache[endpoint] = difference;
-
-            logger(`Difference identified within ${endpoint}`);
-
-            if (ifttt) {
-              postIFTTT(endpoint);
-            }
-          });
-        } else {
-          logger(`No differences identified for ${_.keys(requestResponses).length} responses`);
-        }
+        postIFTTT(endpoint);
       });
-    }, interval * 1000);
+    } else {
+      logger.info(`No differences identified for ${keys(pollResponses).length} responses`);
+    }
   });
+
+  return setInterval(poll, interval * 1000);
+};
+
+// Start App
+makeRequests(endpoints)
+.then((responses) => diffCacheInterval(responses))
+.catch((err) => {
+  logger.error('Error connecting to endpoints', err);
+  process.exit(1);
 });
