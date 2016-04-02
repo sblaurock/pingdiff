@@ -6,6 +6,7 @@ import Promise from 'bluebird';
 
 const IFTTTTimers = {};
 const IFTTTParams = {};
+let endpoints = {};
 const endpointsPath = argv.endpoints;
 const interval = argv.interval;
 const iftttPath = argv.ifttt;
@@ -40,14 +41,15 @@ stat(endpointsPath)
 });
 
 // Read endpoints file and create list of endpoints
-const endpoints = readFile(endpointsPath, 'utf-8')
+const getEndpoints = (path) => readFile(path, 'utf-8')
 .then((endpointsList) => {
   if (!endpointsList.length) {
     logger.error('--endpoints file does not contain any endpoints');
     process.exit(4);
   }
 
-  return endpointsList.split('\n').filter((endpoint) => endpoint && typeof endpoint === 'string');
+  endpoints = endpointsList.split('\n').filter((endpoint) => endpoint && typeof endpoint === 'string'); //eslint-disable-line
+  return endpoints;
 })
 .catch((err) => {
   logger.error('--endpoints file could not be read', err);
@@ -145,7 +147,8 @@ const diffCacheInterval = (responses) => {
 };
 
 // Start App
-makeRequests(endpoints)
+getEndpoints(endpointsPath)
+.then((validEndpoints) => makeRequests(validEndpoints))
 .then((responses) => diffCacheInterval(responses))
 .catch((err) => {
   logger.error('Error connecting to endpoints', err);
