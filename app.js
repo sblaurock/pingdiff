@@ -6,17 +6,19 @@ const request = require('request');
 const jsonfile = require('jsonfile');
 const logger = require("./utils/logger");
 
+let multiplier = 0;
 let IFTTTParams = {};
 let IFTTTTimers = {};
-const { endpoints, interval, ifttt } = argv;
+const { endpoints, interval, ifttt, random } = argv;
 const options = {
   selector: 'body :not(script)',
   jQuerySrc: 'http://code.jquery.com/jquery.js',
-  defaultTimeout: 10
+  defaultTimeout: 10,
+  defaultRandom: 20
 };
 
 // Ensure we have required arguments
-if(!_.isString(endpoints) || !_.isInteger(interval) || interval === 0) {
+if(!_.isString(endpoints) || !_.isInteger(interval) || interval < 0) {
   console.error('--endpoints and --interval are required');
   process.exit(1);
 }
@@ -39,6 +41,18 @@ if(ifttt) {
   if(!key || !eventName || !bodyKey || !_.isString(key) || !_.isString(eventName) || !_.isString(bodyKey)) {
     console.error('--ifttt file is missing required data');
     process.exit(6);
+  }
+}
+
+// Ensure random argument is valid
+if(random) {
+  if(_.isBoolean(random)) {
+    multiplier = options.defaultRandom;
+  } else if((_.isInteger(random) && (random < 0 || random > 99) || !_.isInteger(random))) {
+    console.error('--random must be an integer from 0 to 99');
+    process.exit(7);
+  } else {
+    multiplier = random;
   }
 }
 
@@ -123,26 +137,34 @@ fs.readFile(endpoints, 'utf-8', (err, data) => {
 
     console.log(`${_.keys(responses).length} of ${endpointsList.length} responses cached`);
 
-    setInterval(() => {
-      makeRequests(endpointsList, (responses) => {
-        const differences = _.difference(_.values(responses), _.values(cache));
+    (function loop() {
+      const random = (Math.random() * multiplier) / 100;
+      const plusOrMinus = (Math.random() < 0.5 ? -1 : 1);
+      const timer = Math.floor((interval + plusOrMinus * (random * interval)) * 1000);
 
-        if(differences.length) {
-          differences.forEach((difference) => {
-            const endpoint = _.invert(responses)[difference];
+      setTimeout(() => {
+        makeRequests(endpointsList, (responses) => {
+          const differences = _.difference(_.values(responses), _.values(cache));
 
-            cache[endpoint] = difference;
+          if(differences.length) {
+            differences.forEach((difference) => {
+              const endpoint = _.invert(responses)[difference];
 
-            console.log(`Difference identified within ${endpoint}`);
+              cache[endpoint] = difference;
 
-            if(ifttt) {
-              postIFTTT(endpoint);
-            }
-          });
-        } else {
-          console.log(`No differences identified for ${_.keys(responses).length} responses`)
-        }
-      });
-    }, interval * 1000);
+              console.log(`Difference identified within ${endpoint}`);
+
+              if(ifttt) {
+                postIFTTT(endpoint);
+              }
+            });
+          } else {
+            console.log(`No differences identified for ${_.keys(responses).length} responses`)
+          }
+
+          loop();
+        });
+      }, timer);
+    }());
   });
 });
