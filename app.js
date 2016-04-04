@@ -71,10 +71,8 @@ const makeRequests = (urls, callback) => {
         } else {
           const $ = window.$;
 
-          $(options.selector).each(() => {
-            const responseText = $(this).text().replace(/\W+/g, '');
-
-            responses[url] = responseText;
+          $(options.selector).each(function each() {
+            responses[url] = $(this).text().replace(/\W+/g, '');
           });
         }
 
