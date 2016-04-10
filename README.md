@@ -5,7 +5,7 @@ Detect changes across a supplied list of websites.
     npm install
 
 ### Usage
-    node index.js --interval=60 --endpoints="/path/to/endpoints" --ifttt="/path/to/ifttt.json" --random
+    node index.js --interval=60 --endpoints="/path/to/endpoints.json" --ifttt="/path/to/ifttt.json" --random
 
 ### Endpoint file structure
 ```
@@ -18,9 +18,9 @@ Detect changes across a supplied list of websites.
 ### Flags
 | Flag | Required | Type | Description |
 | --- | --- | --- | --- |
-| interval | ✓ | Integer | Interval (in seconds) of how often to ping endpoints. |
-| endpoints | ✓ | String | Path to line separated list of URL endpoints to ping. |
-| ifttt | ✗ | String | Path to IFTTT JSON configuration _(see below)_. |
+| interval | ✓ | Integer | Interval (in seconds) of how often to make requests. |
+| endpoints | ✓ | String | Path to JSON file of endpoints to monitor. |
+| ifttt | ✗ | String | Path to IFTTT JSON file configuration _(see below)_. |
 | random | ✗ | Integer | Percentage of randomness to apply to interval timing _(default of 20%)_. |
 
 ### IFTTT parameters
