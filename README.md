@@ -7,6 +7,14 @@ Detect changes across a supplied list of websites.
 ### Usage
     node index.js --interval=60 --endpoints="/path/to/endpoints" --ifttt="/path/to/ifttt.json" --random
 
+### Endpoint file structure
+```
+{
+    URL: CSS selector,
+    "http://web.site": "body"
+}
+```
+
 ### Flags
 | Flag | Required | Type | Description |
 | --- | --- | --- | --- |
@@ -15,7 +23,7 @@ Detect changes across a supplied list of websites.
 | ifttt | ✗ | String | Path to IFTTT JSON configuration _(see below)_. |
 | random | ✗ | Integer | Percentage of randomness to apply to interval timing _(default of 20%)_. |
 
-### IFTTT Parameters
+### IFTTT parameters
 | Flag | Required | Type | Description |
 | --- | --- | --- | --- |
 | key | ✓ | String | Maker channel secret key. |

@@ -10,7 +10,6 @@ let multiplier = 0;
 let ifttt = {};
 const args = yargs.argv;
 const options = {
-  selector: 'body',
   jQuerySrc: 'http://code.jquery.com/jquery.min.js',
   defaultTimeout: 10,
   defaultRandom: 20
@@ -47,7 +46,10 @@ if (args.ifttt) {
 if (args.random) {
   if (_.isBoolean(args.random)) {
     multiplier = options.defaultRandom;
-  } else if ((_.isInteger(args.random) && (args.random < 0 || args.random > 99) || !_.isInteger(args.random))) {
+  } else if (
+    (_.isInteger(args.random) && (args.random < 0 || args.random > 99)) ||
+    !_.isInteger(args.random)
+  ) {
     logger.error('--random must be an integer from 0 to 99');
     process.exit(7);
   } else {
@@ -56,7 +58,8 @@ if (args.random) {
 }
 
 // Make requests to endpoints
-const makeRequests = (urls, callback) => {
+const makeRequests = (endpoints, callback) => {
+  const urls = _.keys(endpoints);
   const responses = {};
   let complete = 0;
 
@@ -69,10 +72,14 @@ const makeRequests = (urls, callback) => {
           logger.error(`Resource data located at ${url} failed to load`);
         } else {
           const $ = window.$;
+          const matches = [];
+          const selector = endpoints[url];
 
-          $(options.selector).each(function each() {
-            responses[url] = $(this).text().replace(/\W+/g, '');
+          $(selector).each(function each() {
+            matches.push($(this).text().replace(/\W+/g, ''));
           });
+
+          responses[url] = matches.join('');
         }
 
         complete++;
@@ -115,26 +122,34 @@ const postIFTTT = (data) => {
 };
 
 // Read endpoints file and create list of endpoints
-fs.readFile(args.endpoints, 'utf-8', (err, data) => {
+jsonfile.readFile(args.endpoints, (err, endpoints) => {
   if (err) {
     logger.error('--endpoints file could not be read');
     process.exit(3);
   }
 
-  let endpointsList = data.split('\n');
+  const urls = _
+    .chain(endpoints)
+    .keys()
+    .filter((url) => _.isString(url) && !_.isEmpty(url))
+    .value();
+  const selectors = _
+    .chain(endpoints)
+    .values()
+    .filter((selector) => _.isString(selector) && !_.isEmpty(selector))
+    .value();
 
-  endpointsList = _.filter(endpointsList, (item) => _.isString(item) && !_.isEmpty(item));
-
-  if (!endpointsList.length) {
-    logger.error('--endpoints file does not contain any endpoints');
+  // Ensure endpoint definitions are valid
+  if (!urls.length || !selectors.length || urls.length !== selectors.length) {
+    logger.error('--endpoints file does not contain a valid list of endpoints');
     process.exit(4);
   }
 
   // Cache initial endpoint responses
-  makeRequests(endpointsList, (initialResponses) => {
+  makeRequests(endpoints, (initialResponses) => {
     const cache = initialResponses;
 
-    logger.info(`${_.keys(cache).length} of ${endpointsList.length} responses cached`);
+    logger.info(`${_.keys(cache).length} of ${urls.length} responses cached`);
 
     (function loop() {
       // Apply randomness to timing
@@ -143,7 +158,7 @@ fs.readFile(args.endpoints, 'utf-8', (err, data) => {
       const timer = Math.floor((args.interval + plusOrMinus * (rand * args.interval)) * 1000);
 
       setTimeout(() => {
-        makeRequests(endpointsList, (responses) => {
+        makeRequests(endpoints, (responses) => {
           const differences = _.difference(_.values(responses), _.values(cache));
 
           if (differences.length) {

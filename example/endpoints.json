@@ -1,0 +1,5 @@
+{
+  "http://first.web.site": "body",
+  "http://second.web.site": "div.container",
+  "http://third.web.site": "#search > li"
+}
