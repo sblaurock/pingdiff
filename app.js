@@ -103,7 +103,7 @@ const postIFTTT = (data) => {
   if (!ifttt.timers[data] || now - ifttt.timers[data] > timeout) {
     const postData = {};
 
-    postData[ifttt.bodyKey] = data;
+    postData[ifttt.bodyKey] = data.replace(/http(s)?:\/\//, '');
     ifttt.timers[data] = now;
 
     request.post({
